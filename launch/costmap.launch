@@ -1,0 +1,10 @@
+<launch>
+    <!-- Broadcast the trasform frame between footprint and map-->
+    
+    <node name="costmap_node" pkg="costmap_2d" type="costmap_2d_node" >
+        <rosparam file="$(find pointcloud_process)/launch/costmap_params.yaml" command="load" ns="/costmap_node/costmap" />
+    </node>
+
+    <node name="map_server" pkg="map_server" type="map_server" args="testmap.yaml"/>
+</launch>
+
