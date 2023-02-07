@@ -47,7 +47,7 @@ class height_mapper
     }
 
     void pcp(const pcl::PCLPointCloud2ConstPtr& cloud_sensor){
-
+        ROS_INFO("Running.");
 		//Create the containers for processed clouds and processor objects .
 		pcl::PCLPointCloud2Ptr cloud_voxel1(new pcl::PCLPointCloud2());
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transform0 (new pcl::PointCloud<pcl::PointXYZ>);

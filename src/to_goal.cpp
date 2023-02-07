@@ -10,6 +10,7 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/Odometry.h>
+#include <nav_msgs/Path.h>
 #include <tf/transform_listener.h>
 #include <cmath>
 
@@ -46,7 +47,7 @@ class cmd_relay{
 	cmd_relay(){
 		pub = cmdh.advertise<geometry_msgs::Twist> ("cmd_vel", 1);
 
-		sub = cmdh.subscribe ("/move_base_simple/goal", 1, &cmd_relay::posesCallback, this);
+		sub = cmdh.subscribe ("/ozyegin/path", 1, &cmd_relay::pathCallback, this);
 
 		client = cmdh.serviceClient<std_srvs::Empty>("/ozyegin/services/cloud_process");
 
@@ -55,7 +56,13 @@ class cmd_relay{
 
 	//Navigation Section
 
-	void posesCallback(const geometry_msgs::PoseStampedConstPtr& goal_msg){
+	void pathCallback(const nav_msgs::PathConstPtr& path_msg){
+		for (geometry_msgs::PoseStamped position : path_msg->poses){
+			to_pose(position);
+		}
+	}
+
+	void to_pose(geometry_msgs::PoseStamped goal_msg){
 		//Set up theta, the angle between the object and our rover from the front.
 		double theta;
 		
@@ -63,7 +70,7 @@ class cmd_relay{
 		geometry_msgs::PoseStamped position_transformed;
 		
 		//Apply map -> base_footprint transformation to goal_msg initially.
-		listener.transformPose("base_footprint", *goal_msg, position_transformed);
+		listener.transformPose("base_footprint", goal_msg, position_transformed);
 
 		//Calculate initial distance from point.
 		double distance = sqrt(pow(position_transformed.pose.position.x, 2.0) + pow(position_transformed.pose.position.y, 2.0));
@@ -99,7 +106,7 @@ class cmd_relay{
 			forward();
 
 			//Restate position and recalculate distance.
-			listener.transformPose("base_footprint", *goal_msg, position_transformed);
+			listener.transformPose("base_footprint", goal_msg, position_transformed);
 			distance = sqrt(pow(position_transformed.pose.position.x, 2.0) + pow(position_transformed.pose.position.y, 2.0));
 		}
 
