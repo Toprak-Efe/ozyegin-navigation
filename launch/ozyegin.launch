@@ -5,5 +5,4 @@
   <node pkg="pointcloud_process" type="localizer" name="localizer"/>
   <node pkg="pointcloud_process" type="to_traverse" name="to_traverse"/>
   <include file="$(find pointcloud_process)/launch/costmap.launch"/>
-  <node pkg="pointcloud_process" type="to_goal" name="to_goal"/>
 </launch>

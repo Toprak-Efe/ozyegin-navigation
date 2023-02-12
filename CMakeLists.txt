@@ -22,6 +22,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   pcl_conversions
   pcl_ros
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
@@ -65,9 +66,10 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-# )
+ add_service_files(
+   FILES
+   occupancy_pos.srv
+ )
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -77,10 +79,11 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#  sensor_msgs
-# )
+ generate_messages(
+   DEPENDENCIES
+  std_srvs
+  std_msgs
+ )
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -114,7 +117,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES pointcloud_process
-#  CATKIN_DEPENDS pcl_conversions pcl_ros roscpp sensor_msgs
+  CATKIN_DEPENDS pcl_conversions pcl_ros roscpp sensor_msgs message_runtime
 #  DEPENDS system_lib
 )
 
@@ -137,6 +140,8 @@ add_executable(to_traverse src/to_traverse.cpp)
 target_link_libraries(to_traverse ${catkin_LIBRARIES})
 add_executable(static_path src/static_path.cpp)
 target_link_libraries(static_path ${catkin_LIBRARIES})
+add_executable(pathfinder src/pathfinder.cpp)
+target_link_libraries(pathfinder ${catkin_LIBRARIES})
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}

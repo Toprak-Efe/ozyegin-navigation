@@ -1,0 +1,6 @@
+float32 pose1_x
+float32 pose1_y
+float32 pose2_x
+float32 pose2_y
+---
+bool blocked
