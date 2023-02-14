@@ -8,8 +8,8 @@ publish_frequency: 2.0
 rolling_window: true
 static_map: false
 
-width: 10
-height: 10
+width: 50
+height: 50
 resolution: 0.1
 
 obstacle_range: 20.0

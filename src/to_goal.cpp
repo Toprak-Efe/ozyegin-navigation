@@ -20,6 +20,7 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/voxel_grid.h>
 #include <sensor_msgs/PointCloud2.h>
+#include "pointcloud_process/occupancy_pos.h"
 
 //Costmap Services Includes
 #include <std_srvs/Empty.h>
@@ -31,30 +32,63 @@ class cmd_relay{
 	ros::NodeHandle cmdh;
 
 	//cmdh stream publisher-subscriber init
-	ros::Subscriber sub;
-	ros::Publisher pub;
+	ros::Subscriber sub1; //path 
+	ros::Subscriber sub2;	//goal
+	ros::Publisher pub;	//cmd_vel
 	
 
 	//To_height service objects (Retrieve costmap service)
-	ros::ServiceClient client;
+	ros::ServiceClient client1;
+	ros::ServiceClient client2;
 	std_srvs::Empty process_msg;
 	
 	//tf objects
 	tf::TransformListener listener;
-	tf::StampedTransform transform;
 
 	public:
 	cmd_relay(){
 		pub = cmdh.advertise<geometry_msgs::Twist> ("cmd_vel", 1);
+		sub1 = cmdh.subscribe ("/ozyegin/path", 1, &cmd_relay::pathCallback, this);
+		sub2 = cmdh.subscribe ("/move_base_simple/goal", 1, &cmd_relay::goalCallback, this);
 
-		sub = cmdh.subscribe ("/ozyegin/path", 1, &cmd_relay::pathCallback, this);
-
-		client = cmdh.serviceClient<std_srvs::Empty>("/ozyegin/services/cloud_process");
+		client1 = cmdh.serviceClient<std_srvs::Empty>("/ozyegin/services/cloud_process");
+		client2 = cmdh.serviceClient<pointcloud_process::occupancy_pos>("/ozyegin/services/pathfind_req");
 
 		snapshot();
 	}
 
+	//Location Retrieval
+	geometry_msgs::PoseStamped rover_location(){
+        geometry_msgs::PoseStamped origin_pose;
+
+        origin_pose.pose.orientation.y = 1.0;
+        origin_pose.header.frame_id = "base_link";
+
+        geometry_msgs::PoseStamped rover_pose;
+
+		listener.transformPose("map", origin_pose, rover_pose);
+
+        return rover_pose;
+    }
+
 	//Navigation Section
+	void goalCallback(const geometry_msgs::PoseStampedConstPtr& goal_msg){
+		pointcloud_process::occupancy_pos service_msg;
+		geometry_msgs::PoseStamped rover_position = rover_location();
+
+		service_msg.request.pose1_x = rover_position.pose.position.x;
+		service_msg.request.pose1_y = rover_position.pose.position.y;
+		service_msg.request.pose2_x = goal_msg->pose.position.x;
+		service_msg.request.pose2_y = goal_msg->pose.position.y;
+
+		if (client2.call(service_msg)){
+			ROS_INFO("Process Succesful.");
+		}
+		else{
+			ROS_INFO("Process Failed.");
+		}		
+		return;
+	}
 
 	void pathCallback(const nav_msgs::PathConstPtr& path_msg){
 		for (geometry_msgs::PoseStamped position : path_msg->poses){
@@ -157,7 +191,7 @@ class cmd_relay{
 	}
 
 	void snapshot(){
-		if (client.call(process_msg)){
+		if (client1.call(process_msg)){
 			ROS_INFO("Process Succesful.");
 		}
 		else{
@@ -173,6 +207,8 @@ class cmd_relay{
 		snapshot();
 		}
 	}
+
+	
 };
 
 int main(int argc, char **argv)
