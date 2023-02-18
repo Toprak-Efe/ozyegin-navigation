@@ -2,156 +2,56 @@
 
 #include <array>
 #include <vector>
-#include <nav_msgs/OccupancyGrid.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <random>
 #include <ros/ros.h>
 #include <ros/console.h>
+#include <nav_msgs/OccupancyGrid.h>
 
-double slope(std::array<int, 2> pose_1, std::array<int, 2> pose_2)
-{
-    //Resolve infinite slope
-    if (pose_1 == pose_2){
-        return 0.0;
-    }
-    if (pose_1[0] == pose_2[0]){
-        if (pose_1[1] > pose_2[1]){
-            return -100.0;
-        }
-        else{
-            return 100.0;
-        }
+std::vector<std::array<int, 2>> line_cells(std::array<std::array<int, 2>, 2> indices) {
+    std::vector<std::array<int, 2>> cells;
+
+    int dx = indices[1][0] - indices[0][0];
+    int dy = indices[1][1] - indices[0][1];
+
+    int steps = std::max(abs(dx), abs(dy));
+
+    float x_step = static_cast<float>(dx) / steps;
+    float y_step = static_cast<float>(dy) / steps;
+
+    float x = indices[0][0];
+    float y = indices[0][1];
+
+    for (int i = 0; i < steps + 1; i++) {
+        cells.push_back({ static_cast<int>(round(x)), static_cast<int>(round(y)) });
+        x += x_step;
+        y += y_step;
     }
 
-    //Slope calculation.    
-    double delta_y = pose_2[1] - pose_1[1];
-    double delta_x = pose_2[0] - pose_1[0];
-    double slope = delta_y/delta_x;
-    
-    return slope;
+    return cells;   
 }
 
-std::vector<std::array<int, 2>> line_cells(std::array<std::array<int, 2>, 2> indices)
-{
-    
-    std::array<std::array<int, 2>, 2> positions;
+std::vector<std::array<int, 2>> line_cells(std::array<int, 2> start, std::array<int, 2> end) {
+    std::vector<std::array<int, 2>> cells;
 
-    if (indices[0][0] > indices[1][0]){
-        positions[0][0] = indices[1][0];
-        positions[0][1] = indices[1][1];
-        positions[1][0] = indices[0][0];
-        positions[1][1] = indices[0][1];
-    }
-    else{
-        positions[0][0] = indices[0][0];
-        positions[0][1] = indices[0][1];
-        positions[1][0] = indices[1][0];
-        positions[1][1] = indices[1][1];
-    }
-    std::array<int, 2> pen_pose = positions[0];        
-    std::vector<std::array<int, 2>> drawn_cells;
+    int dx = end[0] - start[0];
+    int dy = end[1] - start[1];
 
-    double true_slope =  slope(positions[0], positions[1]);
+    int steps = std::max(abs(dx), abs(dy));
 
-    drawn_cells.push_back((pen_pose));
-    
-    if (true_slope == 0.0){
-        while (!(pen_pose == positions[1])){
-            pen_pose[0] += 1;
-            drawn_cells.push_back(pen_pose);
-        }
+    float x_step = static_cast<float>(dx) / steps;
+    float y_step = static_cast<float>(dy) / steps;
+
+    float x = start[0];
+    float y = start[1];
+
+    for (int i = 0; i < steps + 1; i++) {
+        cells.push_back({ static_cast<int>(round(x)), static_cast<int>(round(y)) });
+        x += x_step;
+        y += y_step;
     }
 
-    else if (true_slope < 0.0){
-        while (!(pen_pose == positions[1])){
-            std::array<std::array<int, 2>, 2> points = {pen_pose, positions[1]};
-            double traced_slope = slope(points[0], points[1]);
-            if (traced_slope >= true_slope){
-                pen_pose[0] += 1;
-            }
-            else{
-                pen_pose[1] += -1;   
-            }
-            drawn_cells.push_back(pen_pose);
-        }
-    }
-
-    else{
-        while (!(pen_pose == positions[1])){
-            std::array<std::array<int, 2>, 2> points = {pen_pose, positions[1]};
-            double traced_slope = slope(points[0], points[1]);
-            if (traced_slope > true_slope){
-                pen_pose[1] += 1;
-            }
-            else{
-                pen_pose[0] += 1;
-            }
-            drawn_cells.push_back(pen_pose);
-        }
-    }
-
-    return drawn_cells;
-}
-
-std::vector<std::array<int, 2>> line_cells(std::array<int, 2> index1, std::array<int, 2> index2)
-{
-    
-    std::array<std::array<int, 2>, 2> positions;
-
-    if (index1[0] > index2[0]){
-        positions[0][0] = index2[0];
-        positions[0][1] = index2[1];
-        positions[1][0] = index1[0];
-        positions[1][1] = index1[1];
-    }
-    else{
-        positions[0][0] = index1[0];
-        positions[0][1] = index1[1];
-        positions[1][0] = index2[0];
-        positions[1][1] = index2[1];
-    }
-    std::array<int, 2> pen_pose = positions[0];        
-    std::vector<std::array<int, 2>> drawn_cells;
-
-    double true_slope =  slope(positions[0], positions[1]);
-
-    drawn_cells.push_back((pen_pose));
-    
-    if (true_slope == 0.0){
-        while (!(pen_pose == positions[1])){
-            pen_pose[0] += 1;
-            drawn_cells.push_back(pen_pose);
-        }
-    }
-
-    else if (true_slope < 0.0){
-        while (!(pen_pose == positions[1])){
-            std::array<std::array<int, 2>, 2> points = {pen_pose, positions[1]};
-            double traced_slope = slope(points[0], points[1]);
-            if (traced_slope >= true_slope){
-                pen_pose[0] += 1;
-            }
-            else{
-                pen_pose[1] += -1;   
-            }
-            drawn_cells.push_back(pen_pose);
-        }
-    }
-
-    else{
-        while (!(pen_pose == positions[1])){
-            std::array<std::array<int, 2>, 2> points = {pen_pose, positions[1]};
-            double traced_slope = slope(points[0], points[1]);
-            if (traced_slope > true_slope){
-                pen_pose[1] += 1;
-            }
-            else{
-                pen_pose[0] += 1;
-            }
-            drawn_cells.push_back(pen_pose);
-        }
-    }
-
-    return drawn_cells;
+    return cells;   
 }
 
 int get_index(std::array<int, 2> cell_indices, const nav_msgs::OccupancyGridConstPtr occupancy_msg)
@@ -159,7 +59,7 @@ int get_index(std::array<int, 2> cell_indices, const nav_msgs::OccupancyGridCons
     return cell_indices[0] + cell_indices[1]*occupancy_msg->info.width; 
 }
 
-std::array<int, 2> pose_to_indices(geometry_msgs::PoseStamped input, const nav_msgs::OccupancyGridConstPtr occupancy_msg){
+std::array<int, 2> pose_to_indices(const geometry_msgs::PoseStamped input, nav_msgs::OccupancyGridConstPtr occupancy_msg){
     std::array<int, 2> cell_indices = {0, 0};
     float local_x = input.pose.position.x - occupancy_msg->info.origin.position.x;
     float local_y = input.pose.position.y - occupancy_msg->info.origin.position.y;
@@ -203,6 +103,16 @@ std::array<int, 2> pose_to_indices(float x, float y, const nav_msgs::OccupancyGr
     return cell_indices;
 }
 
+geometry_msgs::PoseStamped indices_to_pose(std::array<int, 2> indices, const nav_msgs::OccupancyGridConstPtr occupancy_msg){
+    geometry_msgs::PoseStamped pose;
+    pose.header.frame_id = "map";
+    pose.pose.position.x = (0.5 + indices[0])*occupancy_msg->info.resolution + occupancy_msg->info.origin.position.x;
+    pose.pose.position.y = (0.5 + indices[1])*occupancy_msg->info.resolution + occupancy_msg->info.origin.position.y;
+    pose.pose.position.z = 0.0;
+    pose.pose.orientation.w = 1.0;
+    return pose; 
+}
+
 int point_cost(float x, float y, const nav_msgs::OccupancyGridConstPtr occupancy_msg)
 { 
     return occupancy_msg->data[get_index(pose_to_indices(x, y, occupancy_msg), occupancy_msg)];
@@ -215,4 +125,25 @@ int point_cost(std::array<int, 2> position, const nav_msgs::OccupancyGridConstPt
 
 float distance_sqr(std::array<int, 2> pose1, std::array<int, 2> pose2){
     return pow(pose1[0] - pose2[0], 2) + pow(pose1[1] - pose2[1], 2);
+}
+
+std::array<int, 2> random_indices(const nav_msgs::OccupancyGridConstPtr occupancy_msg){
+    std::random_device rd;
+    std::mt19937 mt(rd());
+    std::uniform_int_distribution<int> distx(0, occupancy_msg->info.width - 1);
+    std::uniform_int_distribution<int> disty(0, occupancy_msg->info.height - 1);
+    int random_x = distx(mt);
+    int random_y = disty(mt);
+    std::array<int, 2> indices = {random_x, random_y};
+    return indices;
+}
+
+bool check_collision(std::array<int, 2> pose1, std::array<int, 2> pose2, const nav_msgs::OccupancyGridConstPtr occupancy_msg, int threshold){
+    std::vector<std::array<int, 2>> line_drawn = line_cells(pose1, pose2);
+    for (int i = 0; i < line_drawn.size(); i++){
+        if (occupancy_msg->data[get_index(line_drawn[i], occupancy_msg)] > threshold){
+            return true;
+        }
+    }
+    return false;
 }

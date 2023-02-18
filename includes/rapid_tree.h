@@ -2,115 +2,125 @@
 
 #include <array>
 #include <vector>
+#include <memory>
+#include <iterator>
 #include <cmath>
 
 #include <nav_msgs/OccupancyGrid.h>
 #include <nav_msgs/Path.h>
 #include "occupancy_utility.h"
 
-class node{
-    private:
-    node* parent = nullptr;
-    std::vector<node*> children;
+struct node{
+    std::shared_ptr<node> parent = nullptr;
     std::array<int, 2> pose;
-
-    
-    void add_child(node* child_pointer){
-        children.push_back(child_pointer);
-    }
-
-    public:
-    void set_pose(std::array<int, 2> position){
-        pose = position;
-    }
-
-    void set_parent(node* parent_pointer){
-        parent = parent_pointer;
-        parent_pointer->add_child(this);
-    }
-
-    std::array<int, 2> get_pose(){
-        return pose;
-    }
-
-    node* get_parent(){
-        return parent;
-    }
-
-    std::vector<node*> get_children(){
-        return children;
-    }
 };
 
 class RRT{
-    private:
-    node pose_start;
-    node pose_end;
-    std::vector<node> node_list = {pose_start, pose_end};
-    float goal_radius_sqr;
-    float exploration_bias;
-    nav_msgs::OccupancyGridConstPtr occupancy_grid;
+    nav_msgs::OccupancyGridConstPtr occupancy_msg;
+    std::vector<std::shared_ptr<node>> node_list;
+    float goal_radsqr;
+    bool waypoints_set = false;
+
+    int getClosestNodeIndex(std::array<int, 2> pose){
+        
+        //We will have to loop over every node in our tree except the goal, and keep in mind the index, because fuck memory management.
+        float closestNodeDistance = distance_sqr(node_list[1]->pose, pose);
+        int closestNodeIndex = 1;        
+
+        for (int i = 1; i < node_list.size(); i++){
+
+            //Move the inspected node into the stack frame.
+            std::array<int, 2> candidateNodePose = node_list[i]->pose;
+            float candidateNodeDistance = distance_sqr(candidateNodePose, pose);
+
+            //If the indexed node is closer, change our opinion as to what nodes are closer.
+            if (closestNodeDistance > candidateNodeDistance){
+            
+                closestNodeDistance = candidateNodeDistance;
+                closestNodeIndex = i;
+            
+            }
+        }
+
+        return closestNodeIndex;
+    }
     
-    int get_closest_index(std::array<int, 2> pose)
-    {
-        float least_distance_sqr = distance_sqr(pose, pose_start.get_pose());
-        int index;
-
-        for (int i = 0; i < node_list.size(); i++)
-        {
-            float distance = distance_sqr(pose, node_list[i].get_pose());
-            if (least_distance_sqr > distance)
-            {    
-                least_distance_sqr = distance;
-                index = i;
-            }
+    std::array<int, 2> calculated_position(std::array<int, 2> node_pose, std::array<int, 2> random_pose, float length){
+        float delta_x = random_pose[0] - node_pose[0];
+        float delta_y = random_pose[1] - node_pose[1];
+        
+        std::array<int, 2> resultPosition = {static_cast<int>(node_pose[0] + length*(delta_x/pow(pow(delta_x, 2) + pow(delta_y, 2), 0.5))), static_cast<int>(node_pose[1] + length*(delta_y/pow(pow(delta_x, 2) + pow(delta_y, 2), 0.5)))}; 
+        
+        if (0 > resultPosition[0]){
+            resultPosition[0] = 0;
+        }
+        
+        if (0 > resultPosition[1]){
+            resultPosition[1] = 0;
         }
 
-        return index;
-    }
-
-    bool check_intersection(std::array<int, 2> pose1, std::array<int, 2> pose2)
-    {
-        std::vector<std::array<int, 2>> drawn_cells = line_cells(pose1, pose2);
-        for (int i = 0; i < drawn_cells.size(); i++){
-            if (10 < occupancy_grid->data[get_index(drawn_cells[i], occupancy_grid)]){
-                return true;
-            }
+        if (resultPosition[0] > (occupancy_msg->info.width - 1)){
+            resultPosition[0] = occupancy_msg->info.width - 1;
         }
-        return false;
+
+        if (resultPosition[1] > (occupancy_msg->info.height - 1)){
+            resultPosition[1] = occupancy_msg->info.height - 1;
+        }
+
+        return resultPosition;
     }
 
-    bool generate_node()
-    {
-        while (true)
-        {
-            srand(time(0));
-            int random_x = rand() % occupancy_grid->info.height;
-            int random_y = rand() % occupancy_grid->info.width;
-            std::array<int, 2> random_pose = {random_x, random_y};
-            std::array<int, 2> candidate_pose;
-            int closest_index = get_closest_index(random_pose);
+    public:
+    RRT(){
+        node_list.reserve(1024);
+        occupancy_msg = nav_msgs::OccupancyGridConstPtr(new nav_msgs::OccupancyGrid);
+    }
+    void set_occupancy(const nav_msgs::OccupancyGridConstPtr occupancy_input){
+        occupancy_msg = occupancy_input;
+    }
+    void set_goal_radius(float radi){
+        goal_radsqr = pow(radi, 2);
+    }
+    void set_waypoints(float x_goal, float y_goal){
 
-            int delta_x = random_x - node_list[closest_index].get_pose()[0];
-            int delta_y = random_y - node_list[closest_index].get_pose()[1];
+        if (waypoints_set){
+            return;
+        }
 
-            candidate_pose[0] = node_list[closest_index].get_pose()[0] + 20*floor((delta_x)/pow(pow(delta_x, 2) + pow(delta_y, 2), 0.5));
-            candidate_pose[1] = node_list[closest_index].get_pose()[1] + 20*floor((delta_y)/pow(pow(delta_x, 2) + pow(delta_y, 2), 0.5));
+        std::array<int, 2> goal_pose = pose_to_indices(x_goal, y_goal, occupancy_msg);
 
-            if (check_intersection(node_list[closest_index].get_pose(), candidate_pose))
-            {
+        node_list.emplace_back(std::make_shared<node>());
+        node_list.emplace_back(std::make_shared<node>());
+
+        int rootX = occupancy_msg->info.width/2;
+        int rootY = occupancy_msg->info.height/2;
+
+        node_list[0]->pose = goal_pose;
+        node_list[1]->pose = {rootX, rootY};
+
+        waypoints_set = true;
+    }
+    bool generate_node(float length){
+        while (true){
+
+            std::array<int, 2> generated_pose = random_indices(occupancy_msg);
+            std::array<int, 2> node_position;
+            int closestNodeIndex = getClosestNodeIndex(generated_pose);
+
+            node_position = calculated_position(node_list[closestNodeIndex]->pose, generated_pose, length);
+
+            std::cout << node_position[0] << ", " << node_position[1] << std::endl;
+            //Devilish function here, check if it actually works.
+            if (check_collision(node_list[closestNodeIndex]->pose, node_position, occupancy_msg, 50.0)){
                 continue;
             }
 
-            node candidate;
-            candidate.set_pose(candidate_pose);
-            candidate.set_parent(&node_list[closest_index]);
-
-            node_list.push_back(candidate);
-
-            if (distance_sqr(pose_end.get_pose(), candidate.get_pose()) < goal_radius_sqr && !(check_intersection(pose_end.get_pose(), candidate.get_pose())))
-            {
-                pose_end.set_parent(&node_list.back());
+            node_list.emplace_back(std::make_shared<node>());   
+            node_list[node_list.size() - 1]->parent = node_list[closestNodeIndex];
+            node_list[node_list.size() - 1]->pose = node_position;
+            
+            if ((distance_sqr(node_position, node_list[0]->pose) < goal_radsqr) && !(check_collision(node_position, node_list[0]->pose, occupancy_msg, 50))){
+                node_list[0]->parent = node_list[node_list.size() - 1];
                 return true;
             }
 
@@ -118,43 +128,28 @@ class RRT{
         }
     }
 
-    public:
-    void set_goal_radi_sqr(float radi_sqr){
-        goal_radius_sqr = radi_sqr;
-    }
-
-    void set_waypoints(std::array<int, 2> initial, std::array<int, 2> final)
-    {
-        pose_start.set_pose(initial);
-        node_list.push_back(pose_start);
-        pose_end.set_pose(final);
-    }
-
-    void set_occupancy(nav_msgs::OccupancyGridConstPtr occupancy_msg)
-    {
-        occupancy_grid = occupancy_msg;
-    }
-
     nav_msgs::Path path_to_goal(){
-        nav_msgs::Path pathway;
-        while(true){
-            if(generate_node()){
+        std::vector<std::array<int, 2>> pathWaypoints;
+
+        while (true){
+            if (generate_node(10.0)){ 
+                std::shared_ptr<node> current_node = node_list[0];
+                while (current_node != node_list[1]){
+                    pathWaypoints.insert(pathWaypoints.begin(), current_node->pose);
+                    current_node = current_node->parent;
+                }
                 break;
             }
         }
 
-        std::vector<geometry_msgs::PoseStamped> poses;
-        node* current_node = &pose_end;
-        while (current_node != &pose_start){
-            geometry_msgs::PoseStamped path_node_position;
-            path_node_position.pose.position.x = current_node->get_pose()[0];
-            path_node_position.pose.position.y = current_node->get_pose()[1];
-            path_node_position.header.frame_id = "map";
-            poses.insert(poses.begin(), path_node_position);
+        std::vector<geometry_msgs::PoseStamped> pathData;
+        for (int i = 0; i < pathWaypoints.size(); i++){
+            geometry_msgs::PoseStamped pathWaypoint = indices_to_pose(pathWaypoints[i], occupancy_msg);
+            pathData.push_back(pathWaypoint);
         }
 
-        pathway.poses = poses;
-        return pathway;
+        nav_msgs::Path path;
+        path.poses = pathData;
+        return path;
     }
-
 };

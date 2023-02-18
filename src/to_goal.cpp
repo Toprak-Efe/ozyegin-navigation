@@ -76,10 +76,8 @@ class cmd_relay{
 		pointcloud_process::occupancy_pos service_msg;
 		geometry_msgs::PoseStamped rover_position = rover_location();
 
-		service_msg.request.pose1_x = rover_position.pose.position.x;
-		service_msg.request.pose1_y = rover_position.pose.position.y;
-		service_msg.request.pose2_x = goal_msg->pose.position.x;
-		service_msg.request.pose2_y = goal_msg->pose.position.y;
+		service_msg.request.pose_x = goal_msg->pose.position.x;
+		service_msg.request.pose_y = goal_msg->pose.position.y;
 
 		if (client2.call(service_msg)){
 			ROS_INFO("Process Succesful.");
@@ -144,8 +142,8 @@ class cmd_relay{
 			distance = sqrt(pow(position_transformed.pose.position.x, 2.0) + pow(position_transformed.pose.position.y, 2.0));
 		}
 
-		//Scan around.
-		scan();
+		//Scan forward.
+		snapshot();
 	}
 
 	void turn(double angle, std::string direction)
