@@ -110,7 +110,7 @@ class RRT{
             node_position = calculated_position(node_list[closestNodeIndex]->pose, generated_pose, length);
 
             std::cout << node_position[0] << ", " << node_position[1] << std::endl;
-            //Devilish function here, check if it actually works.
+
             if (check_collision(node_list[closestNodeIndex]->pose, node_position, occupancy_msg, 50.0)){
                 continue;
             }
@@ -132,7 +132,7 @@ class RRT{
         std::vector<std::array<int, 2>> pathWaypoints;
 
         while (true){
-            if (generate_node(10.0)){ 
+            if (generate_node(30.0)){ 
                 std::shared_ptr<node> current_node = node_list[0];
                 while (current_node != node_list[1]){
                     pathWaypoints.insert(pathWaypoints.begin(), current_node->pose);
@@ -149,6 +149,7 @@ class RRT{
         }
 
         nav_msgs::Path path;
+        path.header.frame_id = "map";
         path.poses = pathData;
         return path;
     }

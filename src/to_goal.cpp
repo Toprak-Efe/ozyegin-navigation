@@ -13,6 +13,7 @@
 #include <nav_msgs/Path.h>
 #include <tf/transform_listener.h>
 #include <cmath>
+#include <array>
 
 //PC2 Processing Includes
 #include <pcl_conversions/pcl_conversions.h>
@@ -22,24 +23,27 @@
 #include <sensor_msgs/PointCloud2.h>
 #include "pointcloud_process/occupancy_pos.h"
 
-//Costmap Services Includes
+//Services Includes
 #include <std_srvs/Empty.h>
+#include <std_srvs/SetBool.h>
 
 class cmd_relay{
 
 	private:
 	//Node handles for different data streams.
 	ros::NodeHandle cmdh;
+	ros::NodeHandle clnt1;
+	ros::NodeHandle clnt2;
 
 	//cmdh stream publisher-subscriber init
 	ros::Subscriber sub1; //path 
 	ros::Subscriber sub2;	//goal
 	ros::Publisher pub;	//cmd_vel
-	
 
 	//To_height service objects (Retrieve costmap service)
 	ros::ServiceClient client1;
 	ros::ServiceClient client2;
+	ros::ServiceClient client3;
 	std_srvs::Empty process_msg;
 	
 	//tf objects
@@ -52,7 +56,8 @@ class cmd_relay{
 		sub2 = cmdh.subscribe ("/move_base_simple/goal", 1, &cmd_relay::goalCallback, this);
 
 		client1 = cmdh.serviceClient<std_srvs::Empty>("/ozyegin/services/cloud_process");
-		client2 = cmdh.serviceClient<pointcloud_process::occupancy_pos>("/ozyegin/services/pathfind_req");
+		client2 = clnt1.serviceClient<pointcloud_process::occupancy_pos>("/ozyegin/services/pathfind");
+		client3 = clnt2.serviceClient<std_srvs::SetBool>("ozyegin/services/check_path");
 
 		snapshot();
 	}
@@ -80,21 +85,33 @@ class cmd_relay{
 		service_msg.request.pose_y = goal_msg->pose.position.y;
 
 		if (client2.call(service_msg)){
-			ROS_INFO("Process Succesful.");
+			ROS_INFO("Path Request Succesful.");
 		}
 		else{
-			ROS_INFO("Process Failed.");
+			ROS_INFO("Path Request Failed.");
 		}		
 		return;
 	}
 
 	void pathCallback(const nav_msgs::PathConstPtr& path_msg){
+		pointcloud_process::occupancy_pos service_msg;
+		service_msg.request.pose_x = path_msg->poses.back().pose.position.x;
+		service_msg.request.pose_y = path_msg->poses.back().pose.position.y;
 		for (geometry_msgs::PoseStamped position : path_msg->poses){
-			to_pose(position);
+			if (!(to_pose(position))){
+				//request service from pathfinder
+				if (client2.call(service_msg)){
+					ROS_INFO("Path Request Sucessful.");
+				}
+				else{
+					ROS_INFO("Path Request Failed.");
+				}	
+				break;
+			}
 		}
 	}
 
-	void to_pose(geometry_msgs::PoseStamped goal_msg){
+	bool to_pose(geometry_msgs::PoseStamped goal_msg){
 		//Set up theta, the angle between the object and our rover from the front.
 		double theta;
 		
@@ -108,9 +125,7 @@ class cmd_relay{
 		double distance = sqrt(pow(position_transformed.pose.position.x, 2.0) + pow(position_transformed.pose.position.y, 2.0));
 
 		//Movement loop to reach the target.
-		while (distance > 0.25){
-			ROS_INFO("Beginning Movement Cycle.");
-			
+		while (distance > 0.50){
 
 			//If statements for different situtations where our y values might be differently signed. We want
 			//the theta to be positive for every coordinate as it signifies the deviation from the positive x axis
@@ -129,11 +144,6 @@ class cmd_relay{
 			//Backwards: -x
 			//Right: -y
 			//Left: y
-
-			//For debugging.
-			std::cout << "X: " << std::to_string(position_transformed.pose.position.x) << std::endl;
-			std::cout << "Y: " << std::to_string(position_transformed.pose.position.y) << std::endl;
-			std::cout << "0: " << std::to_string(theta) << std::endl;
 			
 			forward();
 
@@ -144,6 +154,23 @@ class cmd_relay{
 
 		//Scan forward.
 		snapshot();
+
+		//Check for path validity via service call
+		std_srvs::SetBool collision_msg;
+
+		if (client3.call(collision_msg)){
+			ROS_INFO("Check Succesful.");
+			if (collision_msg.response.success == 1){
+				ROS_INFO("Collision detected, terminating.");
+				return false;
+			}
+		}
+		else{
+			ROS_INFO("Check Failed.");
+		}
+
+		return true;
+		//
 	}
 
 	void turn(double angle, std::string direction)
