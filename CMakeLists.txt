@@ -134,12 +134,8 @@ include_directories(
 
 add_executable(to_goal src/to_goal.cpp)
 target_link_libraries(to_goal ${catkin_LIBRARIES})
-add_executable(localizer src/localizer.cpp)
-target_link_libraries(localizer ${catkin_LIBRARIES})
 add_executable(to_traverse src/to_traverse.cpp)
 target_link_libraries(to_traverse ${catkin_LIBRARIES})
-add_executable(static_path src/static_path.cpp)
-target_link_libraries(static_path ${catkin_LIBRARIES})
 add_executable(pathfinder src/pathfinder.cpp)
 target_link_libraries(pathfinder ${catkin_LIBRARIES})
 
