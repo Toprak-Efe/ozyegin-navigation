@@ -118,8 +118,8 @@ class cmd_relay{
 		//Set up position_transformed, the global position of our goal.
 		geometry_msgs::PoseStamped position_transformed;
 		
-		//Apply map -> base_footprint transformation to goal_msg initially.
-		listener.transformPose("base_footprint", goal_msg, position_transformed);
+		//Apply map -> base_link transformation to goal_msg initially.
+		listener.transformPose("base_link", goal_msg, position_transformed);
 
 		//Calculate initial distance from point.
 		double distance = sqrt(pow(position_transformed.pose.position.x, 2.0) + pow(position_transformed.pose.position.y, 2.0));
@@ -148,7 +148,7 @@ class cmd_relay{
 			forward();
 
 			//Restate position and recalculate distance.
-			listener.transformPose("base_footprint", goal_msg, position_transformed);
+			listener.transformPose("base_link", goal_msg, position_transformed);
 			distance = sqrt(pow(position_transformed.pose.position.x, 2.0) + pow(position_transformed.pose.position.y, 2.0));
 		}
 

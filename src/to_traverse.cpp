@@ -37,9 +37,9 @@ class height_mapper
         hm.setCallbackQueue(&sp_queue);
 
         //Initialize the publisher&subscriber objects
-        pub1 = hm.advertise<pcl::PCLPointCloud2>("/ozyegin/zed2/pc_obstacle", 1, true);
-        pub2 = hm.advertise<pcl::PCLPointCloud2>("/ozyegin/zed2/pc", 1, true);
-        sub = hm.subscribe("/zed2/point_cloud/cloud_registered", 1, &height_mapper::pcp, this);
+        pub1 = hm.advertise<pcl::PCLPointCloud2>("/ozyegin/zed2i/pc_obstacle", 1, true);
+        pub2 = hm.advertise<pcl::PCLPointCloud2>("/ozyegin/zed2i/pc", 1, true);
+        sub = hm.subscribe("/zed2i/zed_node/point_cloud/cloud_registered", 1, &height_mapper::pcp, this);
         
         //Initialize the service callback.
         server = sv.advertiseService("/ozyegin/services/cloud_process", &height_mapper::pcp_master, this);
@@ -67,12 +67,9 @@ class height_mapper
         //PCLPC2 to PCLPC
         pcl::fromPCLPointCloud2(*cloud_voxel1, *cloud_transform0);
 
-        //Transform the cloud_transform0 into the base_link frame.
-        pcl_ros::transformPointCloud("base_link", *cloud_transform0, *cloud_transform1, tfBuffer);
-
         pass.setInputCloud(cloud_transform0);
-        pass.setFilterFieldName("y");
-        pass.setFilterLimits(-10.0, 0.2);
+        pass.setFilterFieldName("x");
+        pass.setFilterLimits(0.2, 10.0);
         pass.filter(*cloud_transform0);
 
         //Transform the cloud_voxel into the map frame.
